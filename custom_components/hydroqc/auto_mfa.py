@@ -7,6 +7,7 @@ import hashlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,7 +16,9 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
 from .auth import (
+    LOGIN_MFA_REQUIRED,
     LOGIN_SUCCESS,
+    async_login,
     async_request_mfa_code,
     async_submit_mfa_code,
     login_outcome,
@@ -34,6 +37,27 @@ _RUNTIME_KEY = f"{DOMAIN}_auto_mfa"
 POLL_SECONDS = 5
 WAIT_SECONDS = 120
 COOLDOWN_SECONDS = 900
+_SENSITIVE_REQUEST: ContextVar[bool] = ContextVar("hydroqc_sensitive_request", default=False)
+
+
+class _SensitiveRequestFilter(logging.Filter):
+    """Keep the wrapper from logging POST payloads or echoed OTPs in this task."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not _SENSITIVE_REQUEST.get()
+
+
+_wrapper_logger = logging.getLogger("hydroqc.httpclient")
+if not any(isinstance(item, _SensitiveRequestFilter) for item in _wrapper_logger.filters):
+    _wrapper_logger.addFilter(_SensitiveRequestFilter())
+
+
+async def _private_request(operation: Awaitable[Any]) -> Any:
+    token = _SENSITIVE_REQUEST.set(True)
+    try:
+        return await operation
+    finally:
+        _SENSITIVE_REQUEST.reset(token)
 
 
 @dataclass
@@ -151,7 +175,7 @@ class AutomaticMfa:
                         "HydroQC session renewed; the automatic verification cooldown "
                         "could not be reset"
                     )
-                if self.entry.options.get(CONF_GMAIL_TRASH, True):
+                if receipt is not None and self.entry.options.get(CONF_GMAIL_TRASH, True):
                     try:
                         await self._async_io(lambda: inbox.trash(receipt))
                     except GmailError:
@@ -170,10 +194,10 @@ class AutomaticMfa:
             finally:
                 await self._async_io(inbox.close)
 
-    async def _async_challenge(self, inbox: GmailInbox, webuser: Any) -> GmailCode:
+    async def _async_challenge(self, inbox: GmailInbox, webuser: Any) -> GmailCode | None:
         for attempt in range(2):
             await self._async_io(inbox.checkpoint)
-            if not await async_request_mfa_code(webuser):
+            if not await _private_request(async_request_mfa_code(webuser)):
                 raise GmailError("mfa_request_failed")
             deadline = asyncio.get_running_loop().time() + WAIT_SECONDS
             receipt: GmailCode | None = None
@@ -185,9 +209,18 @@ class AutomaticMfa:
             if receipt is None:
                 raise GmailError("gmail_timeout")
             try:
-                status = await async_submit_mfa_code(webuser, receipt.code)
+                status = await _private_request(async_submit_mfa_code(webuser, receipt.code))
             except Exception as err:
                 if mfa_error_kind(err) == "expired" and attempt == 0:
+                    # The wrapper clears an expired challenge. Resending alone
+                    # cannot work: restart login without sending, on this client.
+                    restarted = login_outcome(
+                        await _private_request(async_login(webuser, send_mfa_code=False))
+                    )
+                    if restarted == LOGIN_SUCCESS:
+                        return None
+                    if restarted != LOGIN_MFA_REQUIRED:
+                        raise GmailError("mfa_restart_failed") from None
                     continue
                 raise GmailError("mfa_code_rejected") from None
             if login_outcome(status) != LOGIN_SUCCESS:

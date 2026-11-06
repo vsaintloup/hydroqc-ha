@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -144,10 +145,12 @@ async def test_expired_code_is_resent_once(
     inbox: MagicMock,
 ) -> None:
     mock_webuser.submit_mfa_code.side_effect = [HydroQcMFAExpiredError(), True]
+    mock_webuser.login.return_value = "mfa_required"
     with patch("custom_components.hydroqc.auto_mfa.GmailInbox", return_value=inbox):
         await AutomaticMfa(hass, entry).async_renew(mock_webuser, AsyncMock(return_value=True))
     assert inbox.checkpoint.call_count == 2
     assert mock_webuser.request_mfa_code.await_count == 2
+    mock_webuser.login.assert_awaited_once()
 
 
 async def test_expired_code_cannot_loop(
@@ -157,6 +160,7 @@ async def test_expired_code_cannot_loop(
     inbox: MagicMock,
 ) -> None:
     mock_webuser.submit_mfa_code.side_effect = HydroQcMFAExpiredError()
+    mock_webuser.login.return_value = "mfa_required"
     with (
         patch("custom_components.hydroqc.auto_mfa.GmailInbox", return_value=inbox),
         pytest.raises(GmailError, match="mfa_code_rejected"),
@@ -164,6 +168,23 @@ async def test_expired_code_cannot_loop(
         await AutomaticMfa(hass, entry).async_renew(mock_webuser, AsyncMock(return_value=True))
     assert mock_webuser.request_mfa_code.await_count == 2
     inbox.trash.assert_not_called()
+
+
+async def test_wrapper_cannot_log_the_submitted_code(
+    hass: HomeAssistant,
+    entry: MockConfigEntry,
+    mock_webuser: MagicMock,
+    inbox: MagicMock,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    async def submit(code: str) -> bool:
+        logging.getLogger("hydroqc.httpclient").error("Server echoed %s fake-app-password", code)
+        return True
+
+    mock_webuser.submit_mfa_code.side_effect = submit
+    with patch("custom_components.hydroqc.auto_mfa.GmailInbox", return_value=inbox):
+        await AutomaticMfa(hass, entry).async_renew(mock_webuser, AsyncMock(return_value=True))
+    assert "123456" not in caplog.text and "fake-app-password" not in caplog.text
 
 
 async def test_refused_code_does_not_retry_or_log_response(
