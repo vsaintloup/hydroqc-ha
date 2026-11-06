@@ -1,122 +1,47 @@
 name: CI
-
 on:
+  push:
+    branches: [main, feat/gmail-auto-mfa]
   pull_request:
     branches: [main]
-
+  workflow_dispatch:
+permissions:
+  contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   quality:
-    name: Code Quality
+    name: Quality (Python 3.14 / HA 2026.11.0)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
-      
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
-      
-      - name: Install dependencies
-        run: uv sync
-      
-      - name: Lint
-        run: uv run ruff check custom_components/
-      
-      - name: Format check
-        run: uv run ruff format --check custom_components/
-      
-      - name: Type check
-        run: uv run mypy custom_components/hydroqc/
-
+      - run: uv sync --locked
+      - run: uv run ruff check custom_components/
+      - run: uv run ruff format --check custom_components/
+      - run: uv run mypy custom_components/hydroqc/
   test:
-    name: Tests (Python ${{ matrix.python-version }})
+    name: Tests (Python 3.14 / HA 2026.11.0)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.13"]
-        # Add more Python versions when HA supports them
     steps:
       - uses: actions/checkout@v7
-      
       - uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
-      
+          python-version: "3.14"
       - uses: astral-sh/setup-uv@v7
-      
-      - name: Install dependencies
-        run: uv sync
-      
-      - name: Run tests with coverage
-        run: uv run pytest --cov=custom_components.hydroqc --cov-report=xml --cov-report=term -v
-      
-      - name: Upload coverage
-        uses: codecov/codecov-action@v7
-        if: always()
-        with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
-
-  # Test compatibility with different versions of critical dependencies
-  compatibility:
-    name: Compatibility Check (HA ${{ matrix.ha-version }}, hydroqc latest)
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        ha-version: 
-          - "stable"     # Latest stable release
-          - "beta"       # Beta/RC version (tests upcoming changes)
-    steps:
-      - uses: actions/checkout@v7
-      
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-      
-      - uses: astral-sh/setup-uv@v7
-      
-      - name: Install base dependencies
-        run: uv sync
-      
-      - name: Install specific HA and hydroqc versions
+      - run: uv sync --locked
+      - name: Confirm tested versions
+        run: uv run python -c "from importlib.metadata import version; print(version('homeassistant')); print(version('Hydro-Quebec-API-Wrapper'))"
+      - run: uv run python scripts/run_tests.py --cov=custom_components.hydroqc --cov-report=term-missing --tb=short
+      - name: Validate JSON
         run: |
-          # Install latest hydroqc library version (no version constraint = latest)
-          uv pip install --system --upgrade "Hydro-Quebec-API-Wrapper"
-          
-          # Install Home Assistant version
-          if [ "${{ matrix.ha-version }}" = "stable" ]; then
-            # Install latest stable from PyPI
-            uv pip install --system "homeassistant"
-          elif [ "${{ matrix.ha-version }}" = "beta" ]; then
-            # Install latest pre-release (beta/rc)
-            uv pip install --system --pre "homeassistant"
-          else
-            # Install specific version
-            uv pip install --system "homeassistant==${{ matrix.ha-version }}"
-          fi
-      
-      - name: Type check against installed HA version
-        run: uv run mypy custom_components/hydroqc/ --no-error-summary
-        continue-on-error: true
-      
-      - name: Import check
-        run: |
-          uv run python -c "
-          import sys
-          try:
-              from custom_components.hydroqc import DOMAIN
-              from hydroqc.webuser import WebUser
-              from hydroqc.public_client import PublicClient
-              print('✅ All imports successful')
-              sys.exit(0)
-          except Exception as e:
-              print(f'❌ Import failed: {e}')
-              sys.exit(1)
-          "
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          for file in Path("custom_components/hydroqc").rglob("*.json"):
+              json.loads(file.read_text())
+          PY

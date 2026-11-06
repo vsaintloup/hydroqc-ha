@@ -1,13 +1,20 @@
 {
   "domain": "hydroqc",
-  "name": "Hydro-Québec",
-  "after_dependencies": ["recorder", "calendar"],
-  "codeowners": ["@mdallaire"],
+  "name": "Hydro-QuÃ©bec",
+  "after_dependencies": [
+    "recorder",
+    "calendar"
+  ],
+  "codeowners": [
+    "@mdallaire"
+  ],
   "config_flow": true,
-  "documentation": "https://github.com/hydroqc/hydroqc-ha",
+  "documentation": "https://github.com/vsaintloup/hydroqc-ha",
   "integration_type": "service",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/hydroqc/hydroqc-ha/issues",
-  "requirements": ["Hydro-Quebec-API-Wrapper==4.3.1"],
-  "version": "0.7.0"
+  "issue_tracker": "https://github.com/vsaintloup/hydroqc-ha/issues",
+  "requirements": [
+    "Hydro-Quebec-API-Wrapper==4.3.1"
+  ],
+  "version": "0.9.1-beta.1"
 }

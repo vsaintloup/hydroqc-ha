@@ -41,11 +41,13 @@ from ..auth import (
     async_try_silent_login,
     login_outcome,
 )
+from ..auto_mfa import AutomaticMfa
 from ..const import (
     AUTH_MODE_OPENDATA,
     AUTH_MODE_PORTAL,
     CONF_ACCOUNT_ID,
     CONF_AUTH_MODE,
+    CONF_AUTO_MFA,
     CONF_CONTRACT_ID,
     CONF_CONTRACT_NAME,
     CONF_CUSTOMER_ID,
@@ -56,6 +58,7 @@ from ..const import (
     NEW_CONTRACT_GRACE_DAYS,
     NEW_CONTRACT_PERIODS_RETRY_HOURS,
 )
+from ..gmail import GmailError
 from ..public_data_client import PublicDataClient
 from ..session import (
     async_load_session,
@@ -152,6 +155,11 @@ class HydroQcDataCoordinator(
         # updates then stop touching the portal until the user completes the
         # reauthentication flow: only that flow may request a code.
         self._reauth_required: bool = False
+        self._login_lock = asyncio.Lock()
+        self._login_generation = 0
+        self._automatic_mfa = (
+            AutomaticMfa(hass, entry) if self._auth_mode == AUTH_MODE_PORTAL else None
+        )
 
         # Initialize webuser if in portal mode
         if self._auth_mode == AUTH_MODE_PORTAL:
@@ -425,25 +433,53 @@ class HydroQcDataCoordinator(
         self._session_restored = True
         _LOGGER.debug("[Portal] Restored the stored session of %s", self.contract_name)
 
-    async def _async_persist_session(self) -> None:
+    async def _async_persist_session(self) -> bool:
         """Store the current session so a restart can skip the login."""
         if self._webuser is None:
-            return
+            return False
 
         export_state = getattr(self._webuser, "export_session_state", None)
         if not callable(export_state):
-            return
+            return False
 
         try:
             state = export_state()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.debug("[Portal] Could not export the session", exc_info=True)
-            return
+            return False
 
         if isinstance(state, dict):
-            await save_session_state(self.hass, self.entry, state)
+            return await save_session_state(self.hass, self.entry, state)
+        return False
 
     async def _async_login(self) -> None:
+        """Share concurrent login attempts without mutating one client in parallel."""
+        generation = self._login_generation
+        async with self._login_lock:
+            if generation != self._login_generation:
+                return
+            await self._async_login_once()
+            self._login_generation += 1
+
+    async def _async_complete_automatic_mfa(self) -> None:
+        """Renew with Gmail when enabled, otherwise preserve manual reauthentication."""
+        if self.entry.options.get(CONF_AUTO_MFA, False) and self._automatic_mfa is not None:
+            try:
+                await self._automatic_mfa.async_renew(self._webuser, self._async_persist_session)
+            except GmailError as err:
+                self._reauth_required = True
+                raise ConfigEntryAuthFailed(
+                    f"Automatic Gmail verification stopped ({err}); reauthenticate manually"
+                ) from None
+            self._reauth_required = False
+            return
+        self._reauth_required = True
+        raise ConfigEntryAuthFailed(
+            "Hydro-Québec asks for an e-mail verification code: reauthenticate "
+            "the integration to enter it"
+        )
+
+    async def _async_login_once(self) -> None:
         """Log in, raising ConfigEntryAuthFailed when Hydro-Québec rejects the credentials."""
         assert self._webuser is not None
 
@@ -475,12 +511,9 @@ class HydroQcDataCoordinator(
             # are refused. It must not request a verification code: doing so in
             # the background would e-mail a code the user never asked for.
             status = await async_login(self._webuser, send_mfa_code=False)
-        except MFA_ERRORS as err:
-            self._reauth_required = True
-            raise ConfigEntryAuthFailed(
-                "Hydro-Québec asks for an e-mail verification code: reauthenticate "
-                "the integration to enter it"
-            ) from err
+        except MFA_ERRORS:
+            await self._async_complete_automatic_mfa()
+            return
         except hydroqc.error.HydroQcHTTPError as err:
             # A password change request breaks the login redirect chain with a non 5xx status
             if err.status_code is not None and err.status_code >= 500:
@@ -489,11 +522,8 @@ class HydroQcDataCoordinator(
 
         outcome = login_outcome(status)
         if outcome == LOGIN_MFA_REQUIRED:
-            self._reauth_required = True
-            raise ConfigEntryAuthFailed(
-                "Hydro-Québec asks for an e-mail verification code: reauthenticate "
-                "the integration to enter it"
-            )
+            await self._async_complete_automatic_mfa()
+            return
         if outcome != LOGIN_SUCCESS:
             raise ConfigEntryAuthFailed("Hydro-Québec rejected the credentials")
 
@@ -758,6 +788,8 @@ class HydroQcDataCoordinator(
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and close sessions."""
         _LOGGER.debug("Shutting down coordinator")
+        if self._automatic_mfa is not None:
+            await self._automatic_mfa.async_cancel()
         # Cancel any running CSV import task
         if hasattr(self, "_csv_import_task") and self._csv_import_task:
             if not self._csv_import_task.done():

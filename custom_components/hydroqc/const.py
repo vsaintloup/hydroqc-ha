@@ -17,6 +17,10 @@ CONF_HISTORY_DAYS: Final = "history_days"
 CONF_CALENDAR_ENTITY_ID: Final = "calendar_entity_id"
 CONF_ENABLE_CONSUMPTION_SYNC: Final = "enable_consumption_sync"
 CONF_MFA_CODE: Final = "mfa_code"
+CONF_AUTO_MFA: Final = "auto_mfa"
+CONF_GMAIL_USERNAME: Final = "gmail_username"
+CONF_GMAIL_APP_PASSWORD: Final = "gmail_app_password"
+CONF_GMAIL_TRASH: Final = "gmail_trash_after_success"
 
 # Auth modes
 AUTH_MODE_PORTAL: Final = "portal"

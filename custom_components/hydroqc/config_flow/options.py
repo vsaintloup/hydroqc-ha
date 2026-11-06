@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.helpers.selector import (
@@ -13,19 +13,27 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
 )
 
 from ..const import (
+    CONF_AUTO_MFA,
     CONF_CALENDAR_ENTITY_ID,
     CONF_ENABLE_CONSUMPTION_SYNC,
+    CONF_GMAIL_APP_PASSWORD,
+    CONF_GMAIL_TRASH,
+    CONF_GMAIL_USERNAME,
     CONF_PREHEAT_DURATION,
     CONF_RATE,
     CONF_RATE_OPTION,
     DEFAULT_PREHEAT_DURATION,
 )
+from ..gmail import GmailError, validate_gmail
 
 
-class HydroQcOptionsFlow(config_entries.OptionsFlow):
+class HydroQcOptionsFlow(config_entries.OptionsFlowWithReload):
     """Handle options flow for Hydro-Québec integration."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -48,7 +56,12 @@ class HydroQcOptionsFlow(config_entries.OptionsFlow):
                     errors[CONF_CALENDAR_ENTITY_ID] = "calendar_not_found"
 
             if not errors:
-                return self.async_create_entry(title="", data=user_input)
+                self._pending_options = {**self.config_entry.options, **user_input}
+                if self.config_entry.data.get(
+                    "auth_mode", "portal"
+                ) == "portal" and self._pending_options.get(CONF_AUTO_MFA, False):
+                    return await self.async_step_gmail()
+                return self.async_create_entry(title="", data=self._pending_options)
 
         # Check if rate supports calendar configuration
         rate = self.config_entry.data.get(CONF_RATE, "")
@@ -79,6 +92,11 @@ class HydroQcOptionsFlow(config_entries.OptionsFlow):
         if is_portal_mode:
             schema_dict[
                 vol.Optional(
+                    CONF_AUTO_MFA, default=self.config_entry.options.get(CONF_AUTO_MFA, False)
+                )
+            ] = bool
+            schema_dict[
+                vol.Optional(
                     CONF_ENABLE_CONSUMPTION_SYNC,
                     default=self.config_entry.options.get(
                         CONF_ENABLE_CONSUMPTION_SYNC,
@@ -106,5 +124,53 @@ class HydroQcOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(schema_dict),
+            errors=errors,
+        )
+
+    async def async_step_gmail(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Validate Gmail without reading messages or sending a Hydro code."""
+        errors: dict[str, str] = {}
+        saved = self.config_entry.options
+        if user_input is not None:
+            username = user_input[CONF_GMAIL_USERNAME].strip()
+            password = user_input.get(CONF_GMAIL_APP_PASSWORD, "").replace(" ", "") or saved.get(
+                CONF_GMAIL_APP_PASSWORD, ""
+            )
+            if not username.casefold().endswith(("@gmail.com", "@googlemail.com")):
+                errors[CONF_GMAIL_USERNAME] = "gmail_address_required"
+            elif not password:
+                errors[CONF_GMAIL_APP_PASSWORD] = "gmail_password_required"
+            else:
+                try:
+                    await self.hass.async_add_executor_job(validate_gmail, username, password)
+                except GmailError as err:
+                    errors["base"] = (
+                        "gmail_auth_failed"
+                        if str(err) == "gmail_auth_failed"
+                        else "gmail_cannot_connect"
+                    )
+                else:
+                    self._pending_options.update(
+                        {
+                            CONF_GMAIL_USERNAME: username,
+                            CONF_GMAIL_APP_PASSWORD: password,
+                            CONF_GMAIL_TRASH: user_input.get(CONF_GMAIL_TRASH, True),
+                        }
+                    )
+                    return self.async_create_entry(title="", data=self._pending_options)
+        return self.async_show_form(
+            step_id="gmail",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_GMAIL_USERNAME,
+                        default=saved.get(CONF_GMAIL_USERNAME, ""),
+                    ): TextSelector(TextSelectorConfig(type=TextSelectorType.EMAIL)),
+                    vol.Optional(CONF_GMAIL_APP_PASSWORD): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                    vol.Optional(CONF_GMAIL_TRASH, default=saved.get(CONF_GMAIL_TRASH, True)): bool,
+                }
+            ),
             errors=errors,
         )

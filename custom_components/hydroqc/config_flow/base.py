@@ -6,7 +6,7 @@ import logging
 from collections.abc import Mapping
 from typing import Any, cast
 
-import voluptuous as vol
+import probatio as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -37,6 +37,7 @@ from ..auth import (
     mfa_error_kind,
     supports_mfa,
 )
+from ..auto_mfa import async_begin_manual, end_manual
 from ..const import (
     AUTH_MODE_OPENDATA,
     AUTH_MODE_PORTAL,
@@ -111,9 +112,23 @@ class HydroQcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._available_rates: list[dict[str, str]] = []
         self._login_origin: str = LOGIN_ORIGIN_USER
         self._mfa_pending: bool = False
+        self._manual_username: str | None = None
         # Session captured during the initial setup: the config entry does not
         # exist yet, so it is written once HA creates it.
         self._pending_session_state: dict[str, Any] | None = None
+
+    @callback
+    def async_remove(self) -> None:
+        """Release automatic renewal when a manual flow finishes or is abandoned."""
+        if self._manual_username is not None:
+            end_manual(self.hass, self._manual_username, self.flow_id)
+        if self._webuser is not None:
+            self.hass.async_create_task(self._async_close_webuser())
+
+    async def _async_claim_manual(self, username: str) -> None:
+        if self._manual_username is None:
+            self._manual_username = username
+            await async_begin_manual(self.hass, username, self.flow_id)
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step - choose auth mode."""
@@ -792,6 +807,7 @@ class HydroQcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
         if entry.data.get(CONF_AUTH_MODE) != AUTH_MODE_PORTAL:
             return self.async_abort(reason="reconfigure_portal_only")
+        await self._async_claim_manual(entry.data[CONF_USERNAME])
 
         errors: dict[str, str] = {}
         self._login_origin = LOGIN_ORIGIN_RECONFIGURE
@@ -828,6 +844,7 @@ class HydroQcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Ask for the new portal password."""
         entry = self._get_reauth_entry()
+        await self._async_claim_manual(entry.data[CONF_USERNAME])
         errors: dict[str, str] = {}
         self._login_origin = LOGIN_ORIGIN_REAUTH
 

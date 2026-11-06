@@ -171,19 +171,38 @@
           "update_interval": "Intervalo de actualización (segundos)",
           "preheat_duration_minutes": "Duración de precalentamiento (minutos)",
           "enable_consumption_sync": "Habilitar sincronización de consumo",
-          "calendar_entity_id": "Entidad de calendario"
+          "calendar_entity_id": "Entidad de calendario",
+          "auto_mfa": "Automatic renewal through Gmail"
         },
         "data_description": {
           "update_interval": "Con qué frecuencia obtener datos de Hydro-Québec (30-600 segundos)",
           "preheat_duration_minutes": "Duración antes de eventos de pico crítico para activar precalentamiento (0-240 minutos)",
           "enable_consumption_sync": "Habilitar para sincronizar datos de consumo por hora para el panel de energía. Requiere recargar la integración para tener efecto.",
-          "calendar_entity_id": "Entidad de calendario para eventos de pico (solo tarifas DPC/DCPC). Requerido para el funcionamiento de los sensores de pico."
+          "calendar_entity_id": "Entidad de calendario para eventos de pico (solo tarifas DPC/DCPC). Requerido para el funcionamiento de los sensores de pico.",
+          "auto_mfa": "After the first manual login, retrieve Gmail codes when the portal session expires. Manual authentication remains available."
+        }
+      },
+      "gmail": {
+        "title": "Automatic Gmail verification",
+        "description": "Gmail must receive Hydro-Québec codes. Use a Google app password, not your normal password. The connection is tested without reading mail or requesting a Hydro code.",
+        "data": {
+          "gmail_username": "Gmail address",
+          "gmail_app_password": "Google app password",
+          "gmail_trash_after_success": "Move the used email to Trash"
+        },
+        "data_description": {
+          "gmail_app_password": "Leave blank to keep the stored app password.",
+          "gmail_trash_after_success": "Only after the code is accepted and the session saved. Trash is never emptied."
         }
       }
     },
     "error": {
       "calendar_required": "Se requiere un calendario para las tarifas DPC/DCPC. Todos los sensores de pico dependen de los eventos del calendario.",
-      "calendar_not_found": "No se encontró la entidad de calendario. Por favor, cree un calendario primero."
+      "calendar_not_found": "No se encontró la entidad de calendario. Por favor, cree un calendario primero.",
+      "gmail_address_required": "Enter a Gmail address.",
+      "gmail_password_required": "Enter a Google app password.",
+      "gmail_auth_failed": "Gmail rejected the login. Check the address and app password.",
+      "gmail_cannot_connect": "Unable to connect to Gmail or open INBOX."
     }
   },
   "entity": {
