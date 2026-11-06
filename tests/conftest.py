@@ -39,10 +39,14 @@ async def cleanup_test_coordinators(hass: HomeAssistant) -> AsyncGenerator[None]
 
     def track(coordinator: HydroQcDataCoordinator, hass_arg: HomeAssistant, entry: Any) -> None:
         original(coordinator, hass_arg, entry)
+        for client in (coordinator._webuser, coordinator.public_client):
+            if isinstance(client, MagicMock) and not isinstance(client.close_session, AsyncMock):
+                client.close_session = AsyncMock()
         coordinators.append(coordinator)
 
     with patch.object(HydroQcDataCoordinator, "__init__", track):
         yield
+        await hass.async_block_till_done()
         for coordinator in reversed(coordinators):
             await coordinator.async_shutdown()
         await hass.async_block_till_done()
