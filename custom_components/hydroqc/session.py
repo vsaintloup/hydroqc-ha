@@ -64,7 +64,7 @@ async def async_load_session(hass: HomeAssistant, entry: ConfigEntry) -> dict[st
 
 async def async_save_session(
     hass: HomeAssistant, entry: ConfigEntry, state: dict[str, Any]
-) -> None:
+) -> bool:
     """Persist a session produced by ``WebUser.export_session_state``.
 
     A state without refresh token nor cookies cannot skip a login. Such a state
@@ -72,7 +72,7 @@ async def async_save_session(
     replace a stored session that may still work.
     """
     if not state.get("refresh_token") and not state.get("cookies"):
-        return
+        return False
     try:
         await _session_store(hass, entry).async_save(state)
     except Exception:  # pylint: disable=broad-except
@@ -80,3 +80,5 @@ async def async_save_session(
             "Could not store the Hydro-Québec session, the next restart will log in again",
             exc_info=True,
         )
+        return False
+    return True

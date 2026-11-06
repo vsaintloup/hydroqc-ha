@@ -1,5 +1,11 @@
 # Intégration Hydro-Québec pour Home Assistant
 
+> **Fork Gmail MFA — vsaintloup.** Basé sur HydroQC 0.9.0, avec renouvellement
+> automatique optionnel des codes reçus dans Gmail. Home Assistant 2026.11.0 minimum.
+> La première connexion reste manuelle. Voir le
+> [guide français / English guide](docs/gmail-mfa.md).
+> Les explications du projet original ci-dessous décrivent le mode manuel par défaut.
+
 <p align="center">
   <img src="https://raw.githubusercontent.com/hydroqc/hydroqc-ha/main/images/logo.png" alt="Hydro-Québec Logo" width="200"/>
 </p>

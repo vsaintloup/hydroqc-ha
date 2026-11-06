@@ -1,6 +1,6 @@
 """Fixtures for Hydro-Québec integration tests."""
 
-from collections.abc import Generator
+from collections.abc import AsyncGenerator, Generator
 from datetime import datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -25,9 +25,31 @@ from custom_components.hydroqc.const import (
     CONF_RATE_OPTION,
     DOMAIN,
 )
+from custom_components.hydroqc.coordinator import HydroQcDataCoordinator
 
 # Timezone for all date/time operations
 EST_TIMEZONE = ZoneInfo("America/Toronto")
+
+
+@pytest.fixture(autouse=True)
+async def cleanup_test_coordinators(hass: HomeAssistant) -> AsyncGenerator[None]:
+    """Directly constructed unit-test coordinators must also be shut down."""
+    coordinators: list[HydroQcDataCoordinator] = []
+    original = HydroQcDataCoordinator.__init__
+
+    def track(coordinator: HydroQcDataCoordinator, hass_arg: HomeAssistant, entry: Any) -> None:
+        original(coordinator, hass_arg, entry)
+        for client in (coordinator._webuser, coordinator.public_client):
+            if isinstance(client, MagicMock) and not isinstance(client.close_session, AsyncMock):
+                client.close_session = AsyncMock()
+        coordinators.append(coordinator)
+
+    with patch.object(HydroQcDataCoordinator, "__init__", track):
+        yield
+        await hass.async_block_till_done()
+        for coordinator in reversed(coordinators):
+            await coordinator.async_shutdown()
+        await hass.async_block_till_done()
 
 
 @pytest.fixture

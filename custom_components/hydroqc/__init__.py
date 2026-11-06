@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 import homeassistant.helpers.config_validation as cv
-import voluptuous as vol
+import probatio as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -76,8 +76,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_config_entry_first_refresh()
     except ConfigEntryAuthFailed:
+        await coordinator.async_shutdown()
         raise
     except Exception as err:
+        await coordinator.async_shutdown()
         raise ConfigEntryNotReady(f"Error connecting to Hydro-Québec: {err}") from err
 
     hass.data.setdefault(DOMAIN, {})
@@ -95,35 +97,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Mark first refresh as done
     coordinator._first_refresh_done = True
 
-    # Register options update listener for immediate calendar sync
-    async def _async_options_updated(hass: HomeAssistant, config_entry: ConfigEntry) -> None:
-        """Handle options update - trigger immediate calendar sync if configured."""
-        coord: HydroQcDataCoordinator = hass.data[DOMAIN][config_entry.entry_id]
-
-        # Update coordinator with new calendar settings
-        coord._calendar_entity_id = config_entry.options.get(
-            "calendar_entity_id", config_entry.data.get("calendar_entity_id")
-        )
-
-        # Reset validation state to re-validate new calendar entity
-        coord._calendar_validation_attempts = 0
-        coord._calendar_validation_passed = False
-
-        # Trigger immediate calendar sync if calendar is configured
-        if coord._calendar_entity_id:
-            _LOGGER.info(
-                "Calendar configuration updated for %s, triggering immediate sync",
-                coord.contract_name,
-            )
-            await coord._async_sync_calendar_events()
-        else:
-            _LOGGER.info("Calendar configuration removed for %s", coord.contract_name)
-
-    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+    # OptionsFlowWithReload applies Gmail and calendar settings together, even
+    # when the previous setup failed and had no live update listener.
 
     if coordinator.is_portal_mode and coordinator._contract:
         # Check if consumption sync is enabled
-        enable_consumption_sync = entry.data.get("enable_consumption_sync", True)
+        enable_consumption_sync = entry.options.get(
+            "enable_consumption_sync", entry.data.get("enable_consumption_sync", True)
+        )
 
         if enable_consumption_sync:
             # Check if this is the first setup (history_days present) or a restart (flag removed)

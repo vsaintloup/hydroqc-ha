@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import hashlib
 import logging
+from collections.abc import Callable
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -41,11 +42,13 @@ from ..auth import (
     async_try_silent_login,
     login_outcome,
 )
+from ..auto_mfa import AutomaticMfa
 from ..const import (
     AUTH_MODE_OPENDATA,
     AUTH_MODE_PORTAL,
     CONF_ACCOUNT_ID,
     CONF_AUTH_MODE,
+    CONF_AUTO_MFA,
     CONF_CONTRACT_ID,
     CONF_CONTRACT_NAME,
     CONF_CUSTOMER_ID,
@@ -56,6 +59,7 @@ from ..const import (
     NEW_CONTRACT_GRACE_DAYS,
     NEW_CONTRACT_PERIODS_RETRY_HOURS,
 )
+from ..gmail import GmailError
 from ..public_data_client import PublicDataClient
 from ..session import (
     async_load_session,
@@ -152,6 +156,11 @@ class HydroQcDataCoordinator(
         # updates then stop touching the portal until the user completes the
         # reauthentication flow: only that flow may request a code.
         self._reauth_required: bool = False
+        self._login_lock = asyncio.Lock()
+        self._login_generation = 0
+        self._automatic_mfa = (
+            AutomaticMfa(hass, entry) if self._auth_mode == AUTH_MODE_PORTAL else None
+        )
 
         # Initialize webuser if in portal mode
         if self._auth_mode == AUTH_MODE_PORTAL:
@@ -179,12 +188,13 @@ class HydroQcDataCoordinator(
         # Initialize mixin attributes (after super().__init__ so self.hass is available)
         self._init_consumption_sync()
         self._init_calendar_sync()
+        self._schedule_cancellations: list[Callable[[], None]] = []
 
         # Set up scheduled update triggers, cancelled when the entry unloads
         # OpenData: Every 15 minutes during active window (10:30-15:00), hourly otherwise
         # Use offset based on start time to distribute API calls across users
         opendata_minutes = [(self._schedule_offset_minutes + i * 15) % 60 for i in range(4)]
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_opendata_update,
@@ -195,7 +205,7 @@ class HydroQcDataCoordinator(
 
         # Portal: Hourly during active window (0-8h), every 3 hours otherwise
         # Use a stable per-entry offset to distribute API calls across users
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_portal_update,
@@ -206,7 +216,7 @@ class HydroQcDataCoordinator(
 
         # Calendar: Every 15 minutes to catch manual event changes
         # Independent of OpenData - only refreshes calendar-based sensor data
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_calendar_refresh,
@@ -214,6 +224,17 @@ class HydroQcDataCoordinator(
                 second=0,
             )
         )
+
+    def _register_schedule(self, unsubscribe: Callable[[], None]) -> None:
+        """Allow explicit shutdown and entry unloading to share idempotent cleanup."""
+
+        def cancel() -> None:
+            if cancel in self._schedule_cancellations:
+                self._schedule_cancellations.remove(cancel)
+                unsubscribe()
+
+        self._schedule_cancellations.append(cancel)
+        self.entry.async_on_unload(cancel)
 
     @property
     def is_portal_mode(self) -> bool:
@@ -425,25 +446,59 @@ class HydroQcDataCoordinator(
         self._session_restored = True
         _LOGGER.debug("[Portal] Restored the stored session of %s", self.contract_name)
 
-    async def _async_persist_session(self) -> None:
+    async def _async_persist_session(self) -> bool:
         """Store the current session so a restart can skip the login."""
         if self._webuser is None:
-            return
+            return False
 
         export_state = getattr(self._webuser, "export_session_state", None)
         if not callable(export_state):
-            return
+            return False
 
         try:
             state = export_state()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.debug("[Portal] Could not export the session", exc_info=True)
-            return
+            return False
 
         if isinstance(state, dict):
-            await save_session_state(self.hass, self.entry, state)
+            return await save_session_state(self.hass, self.entry, state)
+        return False
 
     async def _async_login(self) -> None:
+        """Share concurrent login attempts without mutating one client in parallel."""
+        if (
+            self._login_generation
+            and self._webuser is not None
+            and not self._webuser.session_expired
+        ):
+            return
+        generation = self._login_generation
+        async with self._login_lock:
+            if generation != self._login_generation:
+                return
+            await self._async_login_once()
+            self._login_generation += 1
+
+    async def _async_complete_automatic_mfa(self) -> None:
+        """Renew with Gmail when enabled, otherwise preserve manual reauthentication."""
+        if self.entry.options.get(CONF_AUTO_MFA, False) and self._automatic_mfa is not None:
+            try:
+                await self._automatic_mfa.async_renew(self._webuser, self._async_persist_session)
+            except GmailError as err:
+                self._reauth_required = True
+                raise ConfigEntryAuthFailed(
+                    f"Automatic Gmail verification stopped ({err}); reauthenticate manually"
+                ) from None
+            self._reauth_required = False
+            return
+        self._reauth_required = True
+        raise ConfigEntryAuthFailed(
+            "Hydro-Québec asks for an e-mail verification code: reauthenticate "
+            "the integration to enter it"
+        )
+
+    async def _async_login_once(self) -> None:
         """Log in, raising ConfigEntryAuthFailed when Hydro-Québec rejects the credentials."""
         assert self._webuser is not None
 
@@ -475,12 +530,9 @@ class HydroQcDataCoordinator(
             # are refused. It must not request a verification code: doing so in
             # the background would e-mail a code the user never asked for.
             status = await async_login(self._webuser, send_mfa_code=False)
-        except MFA_ERRORS as err:
-            self._reauth_required = True
-            raise ConfigEntryAuthFailed(
-                "Hydro-Québec asks for an e-mail verification code: reauthenticate "
-                "the integration to enter it"
-            ) from err
+        except MFA_ERRORS:
+            await self._async_complete_automatic_mfa()
+            return
         except hydroqc.error.HydroQcHTTPError as err:
             # A password change request breaks the login redirect chain with a non 5xx status
             if err.status_code is not None and err.status_code >= 500:
@@ -489,11 +541,8 @@ class HydroQcDataCoordinator(
 
         outcome = login_outcome(status)
         if outcome == LOGIN_MFA_REQUIRED:
-            self._reauth_required = True
-            raise ConfigEntryAuthFailed(
-                "Hydro-Québec asks for an e-mail verification code: reauthenticate "
-                "the integration to enter it"
-            )
+            await self._async_complete_automatic_mfa()
+            return
         if outcome != LOGIN_SUCCESS:
             raise ConfigEntryAuthFailed("Hydro-Québec rejected the credentials")
 
@@ -758,6 +807,15 @@ class HydroQcDataCoordinator(
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and close sessions."""
         _LOGGER.debug("Shutting down coordinator")
+        await super().async_shutdown()
+        for cancel in list(self._schedule_cancellations):
+            cancel()
+        if self._automatic_mfa is not None:
+            await self._automatic_mfa.async_cancel()
+        calendar_task = getattr(self, "_calendar_sync_task", None)
+        if calendar_task is not None and not calendar_task.done():
+            calendar_task.cancel()
+            await asyncio.gather(calendar_task, return_exceptions=True)
         # Cancel any running CSV import task
         if hasattr(self, "_csv_import_task") and self._csv_import_task:
             if not self._csv_import_task.done():
@@ -775,6 +833,9 @@ class HydroQcDataCoordinator(
                     await self._regular_sync_task
                 except asyncio.CancelledError:
                     _LOGGER.debug("Cancelled regular sync task")
+        if self._initial_sync_task is not None and not self._initial_sync_task.done():
+            self._initial_sync_task.cancel()
+            await asyncio.gather(self._initial_sync_task, return_exceptions=True)
 
         if self._webuser:
             await self._webuser.close_session()
