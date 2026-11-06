@@ -43,7 +43,7 @@ _SENSITIVE_REQUEST: ContextVar[bool] = ContextVar("hydroqc_sensitive_request", d
 class _SensitiveRequestFilter(logging.Filter):
     """Keep the wrapper from logging POST payloads or echoed OTPs in this task."""
 
-    def filter(self, record: logging.LogRecord) -> bool:
+    def filter(self, _record: logging.LogRecord) -> bool:
         return not _SENSITIVE_REQUEST.get()
 
 
