@@ -1,6 +1,6 @@
 {
   "domain": "hydroqc",
-  "name": "Hydro-QuÃ©bec",
+  "name": "Hydro-Québec",
   "after_dependencies": [
     "recorder",
     "calendar"
@@ -16,5 +16,5 @@
   "requirements": [
     "Hydro-Quebec-API-Wrapper==4.3.1"
   ],
-  "version": "0.9.1-beta.1"
+  "version": "0.9.1-beta.2"
 }

@@ -1,3 +1,8 @@
+## [0.9.1-beta.2] - 2026-11-06
+
+- Correction de l’encodage du nom Hydro-Québec dans les métadonnées.
+- Fix Hydro-Québec display-name encoding in integration metadata.
+
 ## [0.9.1-beta.1] - 2026-11-06
 
 ### Fork Gmail MFA / Gmail MFA fork
