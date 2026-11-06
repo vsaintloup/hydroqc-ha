@@ -33,7 +33,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -84,7 +84,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -131,7 +131,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -261,7 +261,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -296,7 +296,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -335,7 +335,7 @@ class TestHydroQcSensor:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),

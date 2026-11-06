@@ -467,6 +467,12 @@ class HydroQcDataCoordinator(
 
     async def _async_login(self) -> None:
         """Share concurrent login attempts without mutating one client in parallel."""
+        if (
+            self._login_generation
+            and self._webuser is not None
+            and not self._webuser.session_expired
+        ):
+            return
         generation = self._login_generation
         async with self._login_lock:
             if generation != self._login_generation:
@@ -827,6 +833,9 @@ class HydroQcDataCoordinator(
                     await self._regular_sync_task
                 except asyncio.CancelledError:
                     _LOGGER.debug("Cancelled regular sync task")
+        if self._initial_sync_task is not None and not self._initial_sync_task.done():
+            self._initial_sync_task.cancel()
+            await asyncio.gather(self._initial_sync_task, return_exceptions=True)
 
         if self._webuser:
             await self._webuser.close_session()

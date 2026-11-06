@@ -359,7 +359,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -389,7 +389,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -420,7 +420,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -451,7 +451,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -554,7 +554,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient") as mock_client,
@@ -617,7 +617,7 @@ class TestHydroQcDataCoordinator:
 
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -644,7 +644,7 @@ class TestHydroQcDataCoordinator:
         """Test contract_name property returns configured name."""
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),
@@ -662,7 +662,7 @@ class TestHydroQcDataCoordinator:
         """Test contract_id returns actual ID in portal mode."""
         with (
             patch(
-                "custom_components.hydroqc.coordinator.WebUser",
+                "custom_components.hydroqc.coordinator.base.WebUser",
                 return_value=mock_webuser,
             ),
             patch("custom_components.hydroqc.coordinator.base.PublicDataClient"),

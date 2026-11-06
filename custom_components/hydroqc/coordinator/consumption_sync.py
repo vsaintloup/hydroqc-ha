@@ -33,6 +33,7 @@ class ConsumptionSyncMixin:
         self._csv_import_task: asyncio.Task[None] | None = None
         # Track regular sync task (for recent data updates)
         self._regular_sync_task: asyncio.Task[None] | None = None
+        self._initial_sync_task: asyncio.Task[None] | None = None
 
         # Initialize helper modules (lazy initialization after contract is available)
         self._statistics_manager: StatisticsManager | None = None
@@ -108,7 +109,9 @@ class ConsumptionSyncMixin:
         - Regular sync: Only sync last 24 hours
         - Skips if CSV import is running or portal is offline
         """
-        if not self.is_portal_mode:
+        if not self.is_portal_mode or getattr(self, "_shutdown_requested", False):
+            return
+        if self._initial_sync_task is not None and not self._initial_sync_task.done():
             return
 
         # Hourly consumption of a new contract is refused like its periods, retry next hour
@@ -137,6 +140,9 @@ class ConsumptionSyncMixin:
         # Ensure helper modules are initialized
         self._ensure_helper_modules()
 
+        if getattr(self, "_shutdown_requested", False):
+            return
+
         # Auto-detect if this is the first sync
         is_initial_sync = not self._initial_sync_done
         if is_initial_sync:
@@ -146,7 +152,7 @@ class ConsumptionSyncMixin:
             if is_initial_sync:
                 # Initial sync: Schedule background task to check and fill gaps
                 _LOGGER.info("Starting initial consumption statistics sync (background)")
-                self._regular_sync_task = asyncio.create_task(self._async_initial_sync())
+                self._initial_sync_task = asyncio.create_task(self._async_initial_sync())
             else:
                 # Regular sync: Only sync last 24 hours
                 _LOGGER.debug("Starting regular consumption statistics sync (last 24h)")
