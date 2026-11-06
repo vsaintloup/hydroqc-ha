@@ -1,3 +1,18 @@
+## [0.9.1-beta.1] - 2026-11-06
+
+### Fork Gmail MFA / Gmail MFA fork
+
+- Renouvellement automatique optionnel des sessions HydroQC grâce aux codes Gmail,
+  entièrement dans Home Assistant. Première connexion et reconfiguration manuelles.
+- Nouveau formulaire Gmail avec mot de passe d'application masqué; vérification de
+  l'accès sans lire de courriel ni demander de code Hydro.
+- Exclusion des anciens messages, lecture MIME texte/HTML, demandes limitées,
+  temporisation persistée et priorité à la réauthentification manuelle.
+- Déplacement du seul courriel utilisé à la corbeille après sauvegarde de la session.
+  Aucun code dans les événements, états ou journaux HA.
+- Optional automatic Gmail MFA renewal, targeted cleanup and manual fallback.
+  Tested against HA 2026.11.0 / Python 3.14.2+; see the bilingual Gmail guide.
+
 ## [0.9.0] - 2026-11-05
 
 ### Ajouté

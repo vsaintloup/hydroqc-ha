@@ -144,7 +144,13 @@ class AutomaticMfa:
                 receipt = await self._async_challenge(inbox, webuser)
                 if not await persist_session():
                     raise GmailError("mfa_session_not_saved")
-                await self.store.async_save({"retry_after": 0})
+                try:
+                    await self.store.async_save({"retry_after": 0})
+                except Exception:
+                    _LOGGER.warning(
+                        "HydroQC session renewed; the automatic verification cooldown "
+                        "could not be reset"
+                    )
                 if self.entry.options.get(CONF_GMAIL_TRASH, True):
                     try:
                         await self._async_io(lambda: inbox.trash(receipt))

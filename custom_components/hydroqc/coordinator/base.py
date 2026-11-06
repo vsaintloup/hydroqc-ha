@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import hashlib
 import logging
+from collections.abc import Callable
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -187,12 +188,13 @@ class HydroQcDataCoordinator(
         # Initialize mixin attributes (after super().__init__ so self.hass is available)
         self._init_consumption_sync()
         self._init_calendar_sync()
+        self._schedule_cancellations: list[Callable[[], None]] = []
 
         # Set up scheduled update triggers, cancelled when the entry unloads
         # OpenData: Every 15 minutes during active window (10:30-15:00), hourly otherwise
         # Use offset based on start time to distribute API calls across users
         opendata_minutes = [(self._schedule_offset_minutes + i * 15) % 60 for i in range(4)]
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_opendata_update,
@@ -203,7 +205,7 @@ class HydroQcDataCoordinator(
 
         # Portal: Hourly during active window (0-8h), every 3 hours otherwise
         # Use a stable per-entry offset to distribute API calls across users
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_portal_update,
@@ -214,7 +216,7 @@ class HydroQcDataCoordinator(
 
         # Calendar: Every 15 minutes to catch manual event changes
         # Independent of OpenData - only refreshes calendar-based sensor data
-        entry.async_on_unload(
+        self._register_schedule(
             async_track_time_change(
                 hass,
                 self._async_scheduled_calendar_refresh,
@@ -222,6 +224,17 @@ class HydroQcDataCoordinator(
                 second=0,
             )
         )
+
+    def _register_schedule(self, unsubscribe: Callable[[], None]) -> None:
+        """Allow explicit shutdown and entry unloading to share idempotent cleanup."""
+
+        def cancel() -> None:
+            if cancel in self._schedule_cancellations:
+                self._schedule_cancellations.remove(cancel)
+                unsubscribe()
+
+        self._schedule_cancellations.append(cancel)
+        self.entry.async_on_unload(cancel)
 
     @property
     def is_portal_mode(self) -> bool:
@@ -788,8 +801,15 @@ class HydroQcDataCoordinator(
     async def async_shutdown(self) -> None:
         """Shutdown coordinator and close sessions."""
         _LOGGER.debug("Shutting down coordinator")
+        await super().async_shutdown()
+        for cancel in list(self._schedule_cancellations):
+            cancel()
         if self._automatic_mfa is not None:
             await self._automatic_mfa.async_cancel()
+        calendar_task = getattr(self, "_calendar_sync_task", None)
+        if calendar_task is not None and not calendar_task.done():
+            calendar_task.cancel()
+            await asyncio.gather(calendar_task, return_exceptions=True)
         # Cancel any running CSV import task
         if hasattr(self, "_csv_import_task") and self._csv_import_task:
             if not self._csv_import_task.done():
