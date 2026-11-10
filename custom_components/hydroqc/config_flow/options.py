@@ -7,18 +7,24 @@ from typing import Any
 import probatio as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlowResult
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers.selector import (
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
 )
 
 from ..const import (
+    AUTH_CLIENTS,
+    CONF_AUTH_CLIENT,
     CONF_AUTO_MFA,
     CONF_CALENDAR_ENTITY_ID,
     CONF_ENABLE_CONSUMPTION_SYNC,
@@ -28,7 +34,9 @@ from ..const import (
     CONF_PREHEAT_DURATION,
     CONF_RATE,
     CONF_RATE_OPTION,
+    DEFAULT_AUTH_CLIENT,
     DEFAULT_PREHEAT_DURATION,
+    SECTION_ADVANCED,
 )
 from ..gmail import GmailError, validate_gmail
 
@@ -56,7 +64,9 @@ class HydroQcOptionsFlow(config_entries.OptionsFlowWithReload):
                     errors[CONF_CALENDAR_ENTITY_ID] = "calendar_not_found"
 
             if not errors:
-                self._pending_options = {**self.config_entry.options, **user_input}
+                data = dict(user_input)
+                data.update(data.pop(SECTION_ADVANCED, {}))
+                self._pending_options = {**self.config_entry.options, **data}
                 if self.config_entry.data.get(
                     "auth_mode", "portal"
                 ) == "portal" and self._pending_options.get(CONF_AUTO_MFA, False):
@@ -120,6 +130,27 @@ class HydroQcOptionsFlow(config_entries.OptionsFlowWithReload):
                 schema_dict[vol.Required(CONF_CALENDAR_ENTITY_ID)] = EntitySelector(
                     EntitySelectorConfig(domain="calendar")
                 )
+
+        if is_portal_mode:
+            schema_dict[vol.Required(SECTION_ADVANCED)] = section(
+                vol.Schema(
+                    {
+                        vol.Required(
+                            CONF_AUTH_CLIENT,
+                            default=self.config_entry.options.get(
+                                CONF_AUTH_CLIENT, DEFAULT_AUTH_CLIENT
+                            ),
+                        ): SelectSelector(
+                            SelectSelectorConfig(
+                                options=AUTH_CLIENTS,
+                                translation_key=CONF_AUTH_CLIENT,
+                                mode=SelectSelectorMode.LIST,
+                            )
+                        ),
+                    }
+                ),
+                {"collapsed": True},
+            )
 
         return self.async_show_form(
             step_id="init",

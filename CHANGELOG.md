@@ -1,3 +1,46 @@
+## [0.9.2-beta.1] - 2026-11-10
+
+### Fork Gmail MFA
+
+- Intègre HydroQC officiel 0.9.1 et Hydro-Quebec-API-Wrapper 4.4.0.
+- Ajoute le choix du client web ou mobile dans les options avancées, en conservant
+  le client web par défaut pour préserver les sessions existantes du fork.
+- Conserve le renouvellement Gmail, ses identifiants et les autres options lorsque
+  le client d'authentification change; les options rechargent toujours l'entrée.
+- Reprend les messages français de réauthentification et de reconfiguration de 0.9.1.
+- Merges upstream 0.9.1, preserving Gmail MFA and existing web sessions. Mobile
+  authentication is available as an explicit advanced option.
+
+## [Non publié]
+
+### Ajouté
+
+- **Choix du client de connexion** : les options ont une section repliable « Avancé » pour choisir le client de connexion Hydro-Québec. L'application mobile, par défaut, garde la session 90 jours et la renouvelle automatiquement. Le portail web demande un nouveau code de vérification chaque jour. Changer de client recharge l'intégration et demande un nouveau code. Nécessite une version de hydroqc qui accepte `auth_client`, sinon l'intégration reste sur le portail web et l'indique dans le journal.
+
+### Modifié
+
+### Corrigé
+
+### Retiré
+
+---
+
+## [0.9.1] - 2026-11-09
+
+### Ajouté
+
+### Modifié
+
+- Dépendance `Hydro-Quebec-API-Wrapper` mise à jour de 4.3.1 à 4.4.0. Cette version ajoute un client mobile B2C facultatif, dont le jeton de rafraîchissement glisse sur 90 jours; l'intégration conserve le client web par défaut.
+
+### Corrigé
+
+- **Messages de fin en français** : la fin d'une réauthentification ou d'une reconfiguration affiche maintenant « Réauthentification réussie » ou « Reconfiguration réussie » dans la langue de Home Assistant. Home Assistant affichait son propre message, qui n'est pas traduit en français.
+
+### Retiré
+
+---
+
 ## [0.9.1-beta.2] - 2026-11-06
 
 - Correction de l’encodage du nom Hydro-Québec dans les métadonnées.

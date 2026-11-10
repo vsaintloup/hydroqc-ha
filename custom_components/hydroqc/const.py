@@ -21,13 +21,24 @@ CONF_AUTO_MFA: Final = "auto_mfa"
 CONF_GMAIL_USERNAME: Final = "gmail_username"
 CONF_GMAIL_APP_PASSWORD: Final = "gmail_app_password"
 CONF_GMAIL_TRASH: Final = "gmail_trash_after_success"
+CONF_AUTH_CLIENT: Final = "auth_client"
+
+# Options form sections
+SECTION_ADVANCED: Final = "advanced"
 
 # Auth modes
 AUTH_MODE_PORTAL: Final = "portal"
 AUTH_MODE_OPENDATA: Final = "opendata"
 
+# Hydro-Québec login clients (the wrapper's ``auth_client`` argument)
+AUTH_CLIENT_WEB: Final = "web"
+AUTH_CLIENT_MOBILE: Final = "mobile"
+AUTH_CLIENTS: Final = [AUTH_CLIENT_MOBILE, AUTH_CLIENT_WEB]
+
 # Defaults
 DEFAULT_PREHEAT_DURATION: Final = 120  # minutes
+# Preserve existing web sessions; mobile remains an explicit advanced option.
+DEFAULT_AUTH_CLIENT: Final = AUTH_CLIENT_WEB
 
 # Hydro-Québec only exposes consumption periods 10 days after the contract start,
 # or after the move-in notice when it comes later, hence the margin.

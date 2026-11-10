@@ -6,7 +6,7 @@ Tout fonctionne dans Home Assistant, sans serveur externe, script à planifier n
 
 ## Merci au projet original
 
-Un grand merci à **Mathieu Dallaire — [@mdallaire](https://github.com/mdallaire)** pour son excellent travail sur [HydroQC pour Home Assistant](https://github.com/hydroqc/hydroqc-ha), ainsi qu’aux personnes qui y contribuent. Ce fork, basé sur la version **0.9.0**, s’appuie sur cette intégration et sa prise en charge du MFA manuel.
+Un grand merci à **Mathieu Dallaire — [@mdallaire](https://github.com/mdallaire)** pour son excellent travail sur [HydroQC pour Home Assistant](https://github.com/hydroqc/hydroqc-ha), ainsi qu’aux personnes qui y contribuent. Ce fork, basé sur la version **0.9.1**, s’appuie sur cette intégration et sa prise en charge du MFA manuel.
 
 Ce README présente uniquement les ajouts du fork. Pour l’installation et la configuration générales de HydroQC, les capteurs, les tarifs, les calendriers et les automatisations, consultez le **[mode d’emploi original](https://github.com/hydroqc/hydroqc-ha#readme)**.
 
@@ -16,6 +16,7 @@ Ce README présente uniquement les ajouts du fork. Pour l’installation et la c
 
 ## Ce que le fork ajoute
 
+- Le choix du client web ou mobile de HydroQC 0.9.1, avec Gmail conservé dans les deux modes.
 - Une option Gmail dans les paramètres des entrées utilisant un compte Hydro-Québec.
 - La récupération des nouveaux codes de vérification par IMAP avec connexion TLS vérifiée.
 - La soumission du code et la sauvegarde de la session renouvelée, réutilisable après un redémarrage.
@@ -35,6 +36,17 @@ La configuration initiale, la reconfiguration et la réauthentification manuelle
 Les anciens messages sont exclus. Un nouveau message déjà marqué comme lu reste admissible; la lecture par le module ne le marque pas comme lu. Un contenu ambigu déclenche le secours manuel.
 
 Le renouvellement se produit **lorsque la session expire et que Hydro exige un code**, souvent après environ 24 heures. Il n’y a pas de tâche programmée à une heure fixe ni de surveillance permanente de la boîte Gmail.
+
+## Client web ou mobile
+
+Dans **Configurer / Options → Avancé → Client de connexion**, vous pouvez choisir
+le portail web ou le client de l'application mobile ajouté par HydroQC 0.9.1.
+
+Ce fork conserve le **client web par défaut**, pour réutiliser les sessions des
+versions précédentes. Le mode mobile propose un jeton de rafraîchissement de
+90 jours, prolongé à l'usage; il peut donc réduire les demandes de codes.
+Gmail reste disponible lorsqu'une nouvelle vérification est exigée.
+Changer de client peut demander une nouvelle connexion; les options Gmail sont conservées.
 
 ## Prérequis
 

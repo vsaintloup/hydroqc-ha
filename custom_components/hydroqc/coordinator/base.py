@@ -41,12 +41,14 @@ from ..auth import (
     async_login,
     async_try_silent_login,
     login_outcome,
+    webuser_auth_kwargs,
 )
 from ..auto_mfa import AutomaticMfa
 from ..const import (
     AUTH_MODE_OPENDATA,
     AUTH_MODE_PORTAL,
     CONF_ACCOUNT_ID,
+    CONF_AUTH_CLIENT,
     CONF_AUTH_MODE,
     CONF_AUTO_MFA,
     CONF_CONTRACT_ID,
@@ -55,6 +57,7 @@ from ..const import (
     CONF_PREHEAT_DURATION,
     CONF_RATE,
     CONF_RATE_OPTION,
+    DEFAULT_AUTH_CLIENT,
     DOMAIN,
     NEW_CONTRACT_GRACE_DAYS,
     NEW_CONTRACT_PERIODS_RETRY_HOURS,
@@ -162,6 +165,9 @@ class HydroQcDataCoordinator(
             AutomaticMfa(hass, entry) if self._auth_mode == AUTH_MODE_PORTAL else None
         )
 
+        # Compared by the options listener, which reloads the entry when it changes
+        self.auth_client: str = entry.options.get(CONF_AUTH_CLIENT, DEFAULT_AUTH_CLIENT)
+
         # Initialize webuser if in portal mode
         if self._auth_mode == AUTH_MODE_PORTAL:
             self._webuser = WebUser(
@@ -170,6 +176,7 @@ class HydroQcDataCoordinator(
                 verify_ssl=True,
                 log_level="INFO",
                 http_log_level="WARNING",
+                **webuser_auth_kwargs(entry.options),
             )
             self._customer_id = entry.data[CONF_CUSTOMER_ID]
             self._account_id = entry.data[CONF_ACCOUNT_ID]
