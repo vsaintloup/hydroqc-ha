@@ -4,6 +4,7 @@
 
 Ce fork de HydroQC 0.9.1 fonctionne entièrement dans Home Assistant.
 Il cible HA 2026.11.0 et Python 3.14.2 ou ultérieur.
+La configuration recommandée est **client mobile + Gmail comme secours**.
 
 1. Utilisez Gmail comme adresse du compte Hydro-Québec.
 2. Activez la validation en deux étapes Google et générez un mot de passe
@@ -11,9 +12,10 @@ Il cible HA 2026.11.0 et Python 3.14.2 ou ultérieur.
 3. Dans l'entrée HydroQC existante, choisissez **Reconfigurer**, entrez la nouvelle
    adresse et sélectionnez le même contrat. Terminez la première connexion
    manuellement. Ne supprimez pas l'intégration.
-4. Dans les **Options**, activez **Renouvellement automatique par Gmail**, puis
-   entrez l'adresse Gmail et le mot de passe d'application dans le formulaire masqué.
-   Un champ de mot de passe vide conserve celui déjà enregistré.
+4. Dans les **Options**, activez **Renouvellement automatique par Gmail** et
+   choisissez **Avancé → Client de connexion → Application mobile (recommandé)**.
+5. Validez, puis entrez l'adresse Gmail et le mot de passe d'application dans le
+   formulaire masqué. Un champ de mot de passe vide conserve celui déjà enregistré.
 
 La vérification des options teste uniquement la connexion et l'accès à INBOX :
 elle ne lit aucun message et ne demande aucun code Hydro.
@@ -54,19 +56,24 @@ officiel archivé et redémarrez Core. Conservez l'entrée et le contrat pour
 préserver les identifiants d'entités et l'historique. Aucune restauration de
 base de données n'est nécessaire pour simplement remplacer le code.
 
-Le client web est conservé par défaut. Le client mobile de HydroQC 0.9.1 est
-disponible dans les options avancées; changer de client conserve Gmail mais peut
-exiger une nouvelle connexion.
+Le client mobile utilise un jeton de rafraîchissement de 90 jours, renouvelé
+à l'usage. Gmail intervient seulement si Hydro exige un nouveau code. Aucune
+application mobile ni compte Azure ne sont requis. Le code conserve le client
+web par défaut pour les anciennes sessions : choisissez explicitement le mode
+mobile. La bascule peut exiger une nouvelle vérification; Gmail tente alors
+de la traiter, sinon utilisez la réauthentification manuelle.
 
 ## English
 
 This fork adds opt-in Gmail MFA renewal to HydroQC 0.9.1, entirely inside Home
 Assistant. It targets HA 2026.11.0 and Python 3.14.2 or later.
+**Recommended setup: mobile client with Gmail as a fallback.**
 
 Set the Hydro account email to Gmail. Enable Google 2-Step Verification and create
 an app password. Reconfigure the existing HydroQC entry with the new email and
 the same contract, completing the first login manually. Do not remove the entry.
-In Options, enable automatic Gmail renewal and enter the Gmail address and app
+In Options, enable automatic Gmail renewal and select **Advanced → Login client
+→ Mobile app**. Continue to the Gmail form and enter the Gmail address and app
 password. A blank password field keeps the stored password. Saving options tests
 IMAP access without reading messages or requesting a Hydro code.
 
@@ -94,6 +101,9 @@ integration folder and restarting Core. To roll back, disable automatic renewal,
 restore the original code and restart Core. Keep the existing entry and contract
 to preserve entity identifiers and history; a database restore is unnecessary.
 
-The web client remains the fork default to preserve existing sessions. Upstream
-0.9.1 mobile authentication is available in advanced options. Switching clients
-preserves Gmail settings but may require a new sign-in.
+The mobile client uses a 90-day refresh token, renewed through use. Gmail is only
+used when Hydro requires a new code. No phone app or Azure account is required.
+The web client remains the code default to preserve existing sessions: select
+mobile explicitly. Switching clients preserves Gmail settings and may require
+a new verification; automatic Gmail recovery is attempted, with manual
+reauthentication available if needed.

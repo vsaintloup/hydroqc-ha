@@ -2,7 +2,9 @@
 
 Ce fork ajoute à HydroQC le **renouvellement automatique de la session Hydro-Québec à l’aide des codes reçus dans Gmail**. Après une première connexion manuelle, Home Assistant peut récupérer et soumettre le code lorsque Hydro-Québec exige une nouvelle vérification.
 
-Tout fonctionne dans Home Assistant, sans serveur externe, script à planifier ni intégration IMAP séparée. La fonction est **désactivée par défaut**.
+**Configuration recommandée : mode mobile avec Gmail comme secours.** Le client mobile conserve une session de longue durée; Gmail intervient seulement si Hydro-Québec exige un nouveau code.
+
+Tout fonctionne dans Home Assistant, sans serveur externe, script à planifier ni intégration IMAP séparée. Le renouvellement par Gmail est **désactivé par défaut** et doit être activé dans les options.
 
 ## Merci au projet original
 
@@ -35,18 +37,28 @@ La configuration initiale, la reconfiguration et la réauthentification manuelle
 
 Les anciens messages sont exclus. Un nouveau message déjà marqué comme lu reste admissible; la lecture par le module ne le marque pas comme lu. Un contenu ambigu déclenche le secours manuel.
 
-Le renouvellement se produit **lorsque la session expire et que Hydro exige un code**, souvent après environ 24 heures. Il n’y a pas de tâche programmée à une heure fixe ni de surveillance permanente de la boîte Gmail.
+Gmail intervient **uniquement lorsque Hydro exige un code**. Avec le client web, cela arrive souvent après environ 24 heures. Le mode mobile peut espacer ces demandes grâce à son jeton de longue durée. Il n’y a pas de tâche programmée à une heure fixe ni de surveillance permanente de la boîte Gmail.
 
-## Client web ou mobile
+## Pourquoi recommander le mode mobile avec Gmail en secours ?
 
-Dans **Configurer / Options → Avancé → Client de connexion**, vous pouvez choisir
-le portail web ou le client de l'application mobile ajouté par HydroQC 0.9.1.
+Le mode **Application mobile** de HydroQC 0.9.1 utilise l'identifiant logiciel de
+l'application officielle d'Hydro-Québec pour se connecter. Il est déjà inclus
+dans l'intégration : aucune application à installer sur votre téléphone ni
+compte Azure à créer. Votre compte Hydro et votre mot de passe restent les mêmes.
 
-Ce fork conserve le **client web par défaut**, pour réutiliser les sessions des
-versions précédentes. Le mode mobile propose un jeton de rafraîchissement de
-90 jours, prolongé à l'usage; il peut donc réduire les demandes de codes.
-Gmail reste disponible lorsqu'une nouvelle vérification est exigée.
-Changer de client peut demander une nouvelle connexion; les options Gmail sont conservées.
+Le client mobile reçoit un **jeton de rafraîchissement valable 90 jours**,
+renouvelé à l'usage. Ce jeton permet de renouveler les accès sans redemander
+un code à chaque connexion. Il ne faut donc pas prévoir une vérification
+obligatoire tous les 90 jours; Hydro peut toutefois exiger une nouvelle validation.
+
+- **Mode mobile :** connexion habituelle avec la session de longue durée.
+- **Gmail :** récupération automatique si Hydro exige un nouveau code.
+- **Réauthentification manuelle :** recours si la récupération automatique échoue.
+
+Le code du fork conserve le **client web par défaut** pour préserver les sessions
+des anciennes installations. La configuration recommandée demande donc de choisir
+explicitement **Application mobile** dans les options avancées.
+Le portail web reste disponible si vous souhaitez y revenir.
 
 ## Prérequis
 
@@ -69,15 +81,37 @@ Le fork utilise le même domaine `hydroqc` que le projet original : il remplace 
 
 Pour une première installation de HydroQC, suivez ensuite la [configuration du projet original](https://github.com/hydroqc/hydroqc-ha#configuration).
 
-## Activer Gmail
+## Activer le mode mobile avec Gmail en secours
 
 1. Utilisez votre adresse Gmail comme adresse du compte Hydro-Québec et vérifiez que la connexion au portail fonctionne.
-2. Si une entrée HydroQC existe déjà, choisissez **Reconfigurer**, renseignez la nouvelle adresse et conservez le même contrat. Terminez cette connexion manuellement avec le code reçu. Ne supprimez pas l’entrée.
-3. Dans **Paramètres → Appareils et services → Hydro-Québec → Configurer / Options**, activez **Renouvellement automatique par Gmail** (`Automatic renewal through Gmail`).
-4. À l’étape suivante, entrez l’adresse Gmail et le **mot de passe d’application Google**. Choisissez si le courriel utilisé doit être déplacé à la corbeille; cette option est activée par défaut.
-5. Enregistrez. Le formulaire vérifie l’accès IMAP à Gmail sans lire de courriel ni demander de code Hydro. L’entrée est ensuite rechargée.
+2. Si vous changez l'adresse d'une entrée HydroQC existante, choisissez **Reconfigurer**, renseignez la nouvelle adresse et conservez le même contrat. Terminez cette connexion manuellement avec le code reçu. Ne supprimez pas l'entrée.
+3. Ouvrez **Paramètres → Appareils et services → Hydro-Québec → Configurer / Options**.
+4. Cochez **Renouvellement automatique par Gmail** (`Automatic renewal through Gmail`). Dépliez **Avancé → Client de connexion** et sélectionnez **Application mobile (recommandé)**. Conservez vos autres réglages, puis validez pour passer au formulaire Gmail.
+5. Entrez votre adresse Gmail et votre **mot de passe d'application Google**. Si Gmail est déjà configuré, laissez ce champ vide pour conserver le mot de passe enregistré. Choisissez si le courriel utilisé doit être déplacé à la corbeille; cette option est activée par défaut.
+6. Enregistrez. Le formulaire vérifie l'accès IMAP à Gmail sans lire de courriel ni demander de code Hydro, puis l'entrée est rechargée avec le client mobile.
 
-Le **mot de passe Hydro-Québec** sert à la connexion au portail. Le **mot de passe d’application Google** sert uniquement à l’accès Gmail. Lors d’une modification ultérieure des options, laisser le champ du mot de passe d’application vide conserve celui déjà enregistré.
+Le changement de client peut exiger une nouvelle vérification **lors du
+rechargement**. Gmail reste activé pour la traiter automatiquement si possible.
+Si HA affiche **Réauthentification requise**, terminez cette étape manuellement.
+Vérifiez ensuite que l'entrée est chargée et que les données de consommation
+et de facturation sont disponibles.
+
+Le **mot de passe Hydro-Québec** sert à la connexion au portail. Le **mot de passe d'application Google** sert uniquement à l'accès Gmail.
+Les options Gmail et vos autres réglages sont conservés lorsque vous changez de client.
+
+## Mettre à jour ce fork
+
+Utilisez les [versions de ce fork](https://github.com/vsaintloup/hydroqc-ha/releases)
+pour conserver le secours Gmail. Une mise à jour installée depuis le dépôt
+officiel remplacerait les ajouts du fork.
+
+Après une installation manuelle, Marketplace ou HACS peut encore suivre le
+dépôt officiel et afficher la version qu'il avait installée précédemment.
+Une notification ne signifie donc pas que le code du fork est absent.
+Vérifiez la version affichée sur la page de l'intégration Hydro-Québec.
+Une version officielle déjà intégrée au fork peut être ignorée dans le
+gestionnaire de mises à jour; les nouvelles versions officielles doivent d'abord
+être intégrées et testées dans le fork.
 
 ## En cas d’échec
 
