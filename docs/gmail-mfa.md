@@ -2,7 +2,7 @@
 
 ## Français
 
-Ce fork de HydroQC 0.9.0 fonctionne entièrement dans Home Assistant.
+Ce fork de HydroQC 0.9.1 fonctionne entièrement dans Home Assistant.
 Il cible HA 2026.11.0 et Python 3.14.2 ou ultérieur.
 
 1. Utilisez Gmail comme adresse du compte Hydro-Québec.
@@ -54,9 +54,13 @@ officiel archivé et redémarrez Core. Conservez l'entrée et le contrat pour
 préserver les identifiants d'entités et l'historique. Aucune restauration de
 base de données n'est nécessaire pour simplement remplacer le code.
 
+Le client web est conservé par défaut. Le client mobile de HydroQC 0.9.1 est
+disponible dans les options avancées; changer de client conserve Gmail mais peut
+exiger une nouvelle connexion.
+
 ## English
 
-This fork adds opt-in Gmail MFA renewal to HydroQC 0.9.0, entirely inside Home
+This fork adds opt-in Gmail MFA renewal to HydroQC 0.9.1, entirely inside Home
 Assistant. It targets HA 2026.11.0 and Python 3.14.2 or later.
 
 Set the Hydro account email to Gmail. Enable Google 2-Step Verification and create
@@ -89,3 +93,7 @@ Back up HA and the original code before installing a fork release in the existin
 integration folder and restarting Core. To roll back, disable automatic renewal,
 restore the original code and restart Core. Keep the existing entry and contract
 to preserve entity identifiers and history; a database restore is unnecessary.
+
+The web client remains the fork default to preserve existing sessions. Upstream
+0.9.1 mobile authentication is available in advanced options. Switching clients
+preserves Gmail settings but may require a new sign-in.

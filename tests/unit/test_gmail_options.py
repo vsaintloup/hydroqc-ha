@@ -8,10 +8,12 @@ from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.hydroqc.const import (
+    CONF_AUTH_CLIENT,
     CONF_AUTO_MFA,
     CONF_GMAIL_APP_PASSWORD,
     CONF_GMAIL_TRASH,
     CONF_GMAIL_USERNAME,
+    SECTION_ADVANCED,
 )
 from custom_components.hydroqc.gmail import GmailError
 
@@ -89,3 +91,52 @@ async def test_opendata_does_not_offer_gmail(
     result = await hass.config_entries.options.async_init(mock_config_entry_opendata.entry_id)
     fields = [key.schema for key in result["data_schema"].schema]
     assert CONF_AUTO_MFA not in fields
+    assert SECTION_ADVANCED not in fields
+
+
+@pytest.mark.parametrize("client", ["web", "mobile"])
+@pytest.mark.parametrize("gmail_enabled", [True, False])
+async def test_client_change_preserves_gmail_and_other_options(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    client: str,
+    gmail_enabled: bool,
+) -> None:
+    """Flatten the advanced section without dropping Gmail or calendar options."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            CONF_AUTO_MFA: True,
+            CONF_GMAIL_USERNAME: "fake@gmail.com",
+            CONF_GMAIL_APP_PASSWORD: "stored-fake-secret",
+            CONF_GMAIL_TRASH: False,
+            "calendar_entity_id": "calendar.preserved",
+            "unrelated_future_option": 42,
+        },
+    )
+    with (
+        patch("custom_components.hydroqc.config_flow.options.validate_gmail") as validate,
+        patch.object(hass.config_entries, "async_reload", new=AsyncMock()) as reload,
+    ):
+        result = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            {CONF_AUTO_MFA: gmail_enabled, SECTION_ADVANCED: {CONF_AUTH_CLIENT: client}},
+        )
+        if gmail_enabled:
+            assert result["step_id"] == "gmail"
+            result = await hass.config_entries.options.async_configure(
+                result["flow_id"],
+                {CONF_GMAIL_USERNAME: "fake@gmail.com", CONF_GMAIL_APP_PASSWORD: ""},
+            )
+        await hass.async_block_till_done()
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert mock_config_entry.options[CONF_AUTH_CLIENT] == client
+    assert SECTION_ADVANCED not in mock_config_entry.options
+    assert mock_config_entry.options[CONF_AUTO_MFA] is gmail_enabled
+    assert mock_config_entry.options[CONF_GMAIL_APP_PASSWORD] == "stored-fake-secret"
+    assert mock_config_entry.options["calendar_entity_id"] == "calendar.preserved"
+    assert mock_config_entry.options["unrelated_future_option"] == 42
+    assert validate.call_count == int(gmail_enabled)
+    reload.assert_awaited_once_with(mock_config_entry.entry_id)
