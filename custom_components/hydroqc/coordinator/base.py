@@ -165,7 +165,7 @@ class HydroQcDataCoordinator(
             AutomaticMfa(hass, entry) if self._auth_mode == AUTH_MODE_PORTAL else None
         )
 
-        # Compared by the options listener, which reloads the entry when it changes
+        # OptionsFlowWithReload applies a client change together with Gmail settings.
         self.auth_client: str = entry.options.get(CONF_AUTH_CLIENT, DEFAULT_AUTH_CLIENT)
 
         # Initialize webuser if in portal mode

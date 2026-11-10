@@ -132,7 +132,7 @@ class HydroQcOptionsFlow(config_entries.OptionsFlowWithReload):
                 )
 
         if is_portal_mode:
-            schema_dict[vol.Required(SECTION_ADVANCED)] = section(
+            schema_dict[vol.Optional(SECTION_ADVANCED)] = section(
                 vol.Schema(
                     {
                         vol.Required(

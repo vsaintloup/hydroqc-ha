@@ -70,9 +70,16 @@ async def test_real_wrapper_gmail_session_round_trip(
         assert state["refresh_token"] == "fake-refreshed-token"
         assert state["client_id"] == saved["client_id"]
         inbox.trash.assert_called_once_with(inbox.poll.return_value)
-        assert "123456" not in caplog.text
-        assert "fake-app-password" not in caplog.text
-        assert "fake-refreshed-token" not in caplog.text
+        # HA's storage fixture logs its fake persisted data at DEBUG. Check the
+        # integration and wrapper loggers, which are the production paths.
+        runtime_logs = "\n".join(
+            record.getMessage()
+            for record in caplog.records
+            if record.name.startswith(("hydroqc", "custom_components.hydroqc"))
+        )
+        assert "123456" not in runtime_logs
+        assert "fake-app-password" not in runtime_logs
+        assert "fake-refreshed-token" not in runtime_logs
     finally:
         await user.close_session()
         await restored.close_session()
